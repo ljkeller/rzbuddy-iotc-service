@@ -4,6 +4,7 @@ import pathlib
 EXPORT_PATH = pathlib.Path('/sys/class/gpio/export')
 GPIO_PATH = pathlib.Path('/sys/class/gpio/P15_1/')
 GPIO_LOGICAL_NUM = 241
+SERVO_DURATION_s = 3
 
 def set_gpio(value):
     global GPIO_PATH
@@ -31,9 +32,11 @@ def manual_pwm(high_time, low_time, duration):
         time.sleep(low_time)
 
 def main():
+    global SERVO_DURATION
     try: 
         init_gpio()
-        manual_pwm(0.02, 0.018, 1)
+        # Slowly rotating for roughly 1 turn
+        manual_pwm(0.0010, 0.0190, SERVO_DURATION_s)
     except KeyboardInterrupt:
         print('Exiting...')
         set_gpio('0')
