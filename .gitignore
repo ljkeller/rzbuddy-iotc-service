@@ -1,6 +1,17 @@
 # Prerequisites
 *.d
 
+# Configs
+config/secrets.json
+
+# logging
+logs/*
+
+# Certs
+config/AmazonRootCA1.pem
+config/cert_rz_ai_treat_device.crt
+config/pk_rz_ai_treat_device.pem
+
 # Compiled Object files
 *.slo
 *.lo

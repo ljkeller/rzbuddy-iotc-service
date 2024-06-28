@@ -5,7 +5,6 @@ import socket
 import sys
 import signal
 import time
-import random
 from datetime import datetime
 from typing import Dict, Any, List
 
@@ -14,11 +13,11 @@ from iotconnect import IoTConnectSDK
 class SignalException(Exception):
     """Custom exception to exit gracefully"""
 
-class IoTConnectClient:
+class IoTConnectManager:
     """Send SPARK data to IoTConnect platform using IoTConnect SDK."""
-    def __init__(self, config_path: List[str]) -> None:
+    def __init__(self, configs: List[str]) -> None:
         self.config = {}
-        self.load_config(config_path)
+        self.inject_config(configs)
         print(f"Configuration loaded: {self.config}")
         # TODO: Put more of these options in the configuration file
         self.sdk_options = {
@@ -47,8 +46,8 @@ class IoTConnectClient:
         self.next_transmit_time = time.time()
         print("IoTConnect service initialized")
 
-    def load_config(self, config_paths: List[str]) -> None:
-        """Dependency inject client configuration"""
+    def inject_config(self, config_paths: List[str]) -> None:
+        """Inject app configuration, dependencies"""
         try:
             for config_path in config_paths:
                 with open(config_path, encoding="utf-8") as f:
@@ -57,9 +56,12 @@ class IoTConnectClient:
         except Exception as e:
             print(e)
             sys.exit(1)
-
-    def get_spark_datagram_socket(self) -> socket.socket:
+    
+    # WARN: Not in use for now
+    def get_dgram_socket(self) -> socket.socket:
         """Attempt connection (continuously) to SPARK producer socket"""
+        raise NotImplementedError("This method is not in use for now")
+
         max_retry_backoff_s = 8
         retry_backoff_s = 1
         sock = None
@@ -101,17 +103,20 @@ class IoTConnectClient:
         signal.signal(signal.SIGTERM, self.exit_handler)
 
     def exit_handler(self, _sig, _frame) -> None:
-        """Stop IoT/SPARK integration"""
+        """Stop IoT/RZBuddy integration"""
         print("Exit signal detected. Exiting...")
         self.run_continuously = False
         raise SignalException("Exit signal detected")
     
+    # WARN: Not in use for now
     def receive_json_payload(self, sock: socket.socket) -> Dict[str, Any]:
         """Receive JSON payload from producer socket"""
+        raise NotImplementedError("This method is not in use for now")
+
         if sock is None:
             raise ConnectionError("SPARK consumer socket not connected")
         
-        bytes_data, _addr = sock.recvfrom(1024)
+        bytes_data, _ = sock.recvfrom(1024)
         if not bytes_data:
             raise ConnectionError("SPARK producer socket closing")
 
@@ -121,7 +126,7 @@ class IoTConnectClient:
             print(f"Failed to parse JSON payload: {e}")
             return dict()
 
-    def device_callback(self, msg: Dict[str, Any]) -> None:
+    def device_command_callback(self, msg: Dict[str, Any]) -> None:
         print("\n--- Device Callback ---")
         print(json.dumps(msg))
         cmd_type = None
@@ -167,9 +172,11 @@ class IoTConnectClient:
         print(json.dumps(msg))
 
     def send_json_payload_throttled(self, feed_data: Dict[str, Any]) -> bool:
+        """Send JSON payload to IoTConnect"""
         if feed_data is None or len(feed_data.items()) == 0:
+            print("Empty payload. Skipping transmission.")
             return False
-
+        
         try:
             # Snapshot payload before altering it
             cur_payload_str = json.dumps(feed_data)
@@ -177,9 +184,6 @@ class IoTConnectClient:
             if cur_payload_str == self.last_payload_str or time.time() < self.next_transmit_time:
                 return False
 
-            lat_min, lat_max = 39.0, 40.0
-            long_min, long_max = -105.0, -104.0
-            feed_data['location'] = [round(random.uniform(lat_min, lat_max), 5), round(random.uniform(long_min, long_max), 5)]
             payload = [{
                 "uniqueId": self.config['ids']['uniqueId'],
                 "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
@@ -191,6 +195,7 @@ class IoTConnectClient:
             self.last_payload_str = cur_payload_str
             self.next_transmit_time = time.time() + self.sdk_options['transmit_interval_seconds']
             return True
+
         except Exception as e:
             print(f"Caught exception {e} while trying to send JSON payload to IoT connect.")
             return False
@@ -204,25 +209,26 @@ class IoTConnectClient:
                 print("Starting IoTConnect SDK")
                 with IoTConnectSDK(self.config['ids']['uniqueId'], self.config['ids']['sid'], self.sdk_options, self.device_connection_callback) as self.sdk:
                     self.device_list = self.sdk.Getdevice()
-                    self.sdk.onDeviceCommand(self.device_callback)
+                    self.sdk.onDeviceCommand(self.device_command_callback)
                     self.sdk.onTwinChangeCommand(self.twin_update_callback)
                     self.sdk.onOTACommand(self.device_firmware_callback)
                     self.sdk.onDeviceChangeCommand(self.device_connection_callback)
                     self.sdk.getTwins()
                     self.device_list = self.sdk.Getdevice()
-                    spark_socket = self.get_spark_datagram_socket()
-                    print("Forwarding telemetry data to IoTConnect when it arrives...")
+                    #spark_socket = self.get_dgram_socket()
+                    #print("Forwarding telemetry data to IoTConnect when it arrives...")
                     while True:
-                        payload = self.receive_json_payload(spark_socket)
+                    #    payload = self.receive_json_payload(spark_socket)
+                        payload = {"status": "no dog detected", "todays_total_dispense": 0, "treat_dispense": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")}
                         self.send_json_payload_throttled(payload)
             except SignalException:
                 sys.exit(0)
             # exponential backoff
             except Exception as ex:
-                print(f'Backing off from {ex}')
+                print(f'Backing off from exception: {ex}')
                 time.sleep(retry_backoff_s)
                 retry_backoff_s = min(max_retry_backoff_s, retry_backoff_s * 2)
 
 if __name__ == "__main__":
-    client = IoTConnectClient(['/opt/rzbuddy/iot/secrets.json', '/opt/rzbuddy/iot/config.json'])
+    client = IoTConnectManager(['config/secrets.json', 'config/network_config.json'])
     client.run_telemetry_continuously()
