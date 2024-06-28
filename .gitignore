@@ -2,7 +2,7 @@
 *.d
 
 # Configs
-config/secrets.json
+config/iotconnect-config-secrets.json
 
 # logging
 logs/*

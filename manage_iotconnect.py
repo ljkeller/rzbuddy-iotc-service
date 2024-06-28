@@ -19,24 +19,7 @@ class IoTConnectManager:
         self.config = {}
         self.inject_config(configs)
         print(f"Configuration loaded: {self.config}")
-        # TODO: Put more of these options in the configuration file
-        self.sdk_options = {
-            "certificate": {
-                "SSLKeyPath": self.config['ssl']['keyPath'],
-                "SSLCertPath": self.config['ssl']['certPath'],
-                "SSLCaPath": self.config['ssl']['caPath'],
-            },
-            "offlineStorage": {
-                "disabled": False,
-                "availSpaceInMb": 0.01,
-                "fileCount": 5,
-                "keepalive": 60
-            },
-            "skipValidation": False,
-            "discoveryUrl": self.config['networking']['discoveryUrl'],
-            "IsDebug": True,
-            "transmit_interval_seconds": 2
-        }
+
         self.sdk = None
         self.device_list = []
         self.setup_exit_handler()
@@ -54,7 +37,7 @@ class IoTConnectManager:
                     # Load configuration from JSON file(s) with UNIQUE KEYS
                     self.config.update(json.load(f))
         except Exception as e:
-            print(e)
+            print(f"Error injecting config: {e}")
             sys.exit(1)
     
     # WARN: Not in use for now
@@ -193,7 +176,7 @@ class IoTConnectManager:
             self.sdk.SendData(payload)
 
             self.last_payload_str = cur_payload_str
-            self.next_transmit_time = time.time() + self.sdk_options['transmit_interval_seconds']
+            self.next_transmit_time = time.time() + self.config['transmit_interval_seconds']
             return True
 
         except Exception as e:
@@ -207,7 +190,7 @@ class IoTConnectManager:
         while self.run_continuously:
             try:
                 print("Starting IoTConnect SDK")
-                with IoTConnectSDK(self.config['ids']['uniqueId'], self.config['ids']['sid'], self.sdk_options, self.device_connection_callback) as self.sdk:
+                with IoTConnectSDK(self.config['ids']['uniqueId'], self.config['ids']['sid'], self.config['sdk_options'], self.device_connection_callback) as self.sdk:
                     self.device_list = self.sdk.Getdevice()
                     self.sdk.onDeviceCommand(self.device_command_callback)
                     self.sdk.onTwinChangeCommand(self.twin_update_callback)
@@ -230,5 +213,5 @@ class IoTConnectManager:
                 retry_backoff_s = min(max_retry_backoff_s, retry_backoff_s * 2)
 
 if __name__ == "__main__":
-    client = IoTConnectManager(['config/secrets.json', 'config/network_config.json'])
+    client = IoTConnectManager(['config/iotconnect-config-secrets.json', 'config/network_config.json'])
     client.run_telemetry_continuously()
