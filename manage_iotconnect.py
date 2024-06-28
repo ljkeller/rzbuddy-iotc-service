@@ -1,4 +1,4 @@
-"""SPARK & IoTConnect Integration"""
+"""RZBuddy & IoTConnect Integration"""
 
 import json
 import socket
@@ -14,7 +14,7 @@ class SignalException(Exception):
     """Custom exception to exit gracefully"""
 
 class IoTConnectManager:
-    """Send SPARK data to IoTConnect platform using IoTConnect SDK."""
+    """Send RZBuddy data to IoTConnect platform using IoTConnect SDK."""
     def __init__(self, configs: List[str]) -> None:
         self.config = {}
         self.inject_config(configs)
@@ -42,7 +42,7 @@ class IoTConnectManager:
     
     # WARN: Not in use for now
     def get_dgram_socket(self) -> socket.socket:
-        """Attempt connection (continuously) to SPARK producer socket"""
+        """Attempt connection (continuously) to RZBuddy producer socket"""
         raise NotImplementedError("This method is not in use for now")
 
         max_retry_backoff_s = 8
@@ -50,7 +50,7 @@ class IoTConnectManager:
         sock = None
         while self.run_continuously:
             try:
-                for addr in socket.getaddrinfo(self.config['spark_socket_ipv6'], self.config['spark_socket_port'], socket.AF_INET6, socket.SOCK_DGRAM, 0, socket.AI_PASSIVE):
+                for addr in socket.getaddrinfo(self.config['rzbuddy_socket_ipv6'], self.config['rzbuddy_socket_port'], socket.AF_INET6, socket.SOCK_DGRAM, 0, socket.AI_PASSIVE):
                     af, socktype, proto, _, sa = addr
                     try:
                         sock = socket.socket(af, socktype, proto)
@@ -97,11 +97,11 @@ class IoTConnectManager:
         raise NotImplementedError("This method is not in use for now")
 
         if sock is None:
-            raise ConnectionError("SPARK consumer socket not connected")
+            raise ConnectionError("RZBuddy consumer socket not connected")
         
         bytes_data, _ = sock.recvfrom(1024)
         if not bytes_data:
-            raise ConnectionError("SPARK producer socket closing")
+            raise ConnectionError("RZBuddy producer socket closing")
 
         try:
             return json.loads(bytes_data.decode('utf-8'))
@@ -198,10 +198,10 @@ class IoTConnectManager:
                     self.sdk.onDeviceChangeCommand(self.device_connection_callback)
                     self.sdk.getTwins()
                     self.device_list = self.sdk.Getdevice()
-                    #spark_socket = self.get_dgram_socket()
+                    #rzbuddy_socket = self.get_dgram_socket()
                     #print("Forwarding telemetry data to IoTConnect when it arrives...")
                     while True:
-                    #    payload = self.receive_json_payload(spark_socket)
+                    #    payload = self.receive_json_payload(rzbuddy_socket)
                         payload = {"status": "no dog detected", "todays_total_dispense": 0, "treat_dispense": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")}
                         self.send_json_payload_throttled(payload)
             except SignalException:
