@@ -12,6 +12,7 @@ class TestServo(unittest.TestCase):
         assert (servo_manager.init_gpio())
 
     def setUp(self):
+        # Just to make visual inspection easier
         time.sleep(0.5)
 
     def test_perform_rotation_1(self):
