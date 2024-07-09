@@ -49,6 +49,13 @@ def perform_rotation(rotations=1):
         manual_pwm()
 
 
+def nudge_forward():
+    """
+    Nudge the servo motor forward.
+    """
+    manual_pwm(duration=0.1)
+
+
 def manual_pwm(pulse_width=0.0009, duration=0.92):
     """
     Primary interface to control the servo motor.

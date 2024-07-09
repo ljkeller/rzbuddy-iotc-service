@@ -15,11 +15,11 @@ class TestServo(unittest.TestCase):
         # Just to make visual inspection easier
         time.sleep(0.5)
 
-    def test_perform_rotation_1(self):
-        servo_manager.perform_rotation(1)
+    def test_perform_full_rotations_1(self):
+        servo_manager.perform_full_rotations(1)
 
-    def test_perform_rotation_2(self):
-        servo_manager.perform_rotation(2)
+    def test_perform_full_rotations_2(self):
+        servo_manager.perform_full_rotations(2)
 
     # TODO: Test partial rotations
     # TODO: Add and test cleanup
