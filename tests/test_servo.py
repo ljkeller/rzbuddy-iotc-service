@@ -21,6 +21,16 @@ class TestServo(unittest.TestCase):
     def test_perform_full_rotations_2(self):
         servo_manager.perform_full_rotations(2)
 
+    def test_nudge(self):
+        servo_manager.nudge_forward()
+        time.sleep(0.25)
+        servo_manager.nudge_forward()
+        time.sleep(0.25)
+        servo_manager.nudge_forward()
+        time.sleep(0.25)
+        servo_manager.nudge_forward()
+        time.sleep(0.25)
+
     # TODO: Test partial rotations
     # TODO: Add and test cleanup
 

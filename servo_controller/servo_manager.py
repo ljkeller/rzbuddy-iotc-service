@@ -1,9 +1,11 @@
 import time
 import pathlib
 
-# To understand this mapping, refer to the hardware documentation
+# To understand this mapping, refer to the RZBoard Linux Yocto User's Manual
+# pinum = group * group_size + pin + pin_base (group_size = 8, pin_base = 120)
+# -> 241 = 15 * 8 + 1 + 120
 EXPORT_PATH = pathlib.Path('/sys/class/gpio/export')
-GPIO_PATH = pathlib.Path('/sys/class/gpio/P15_1/')
+SERVO_GPIO_PATH = pathlib.Path('/sys/class/gpio/P15_1/')
 GPIO_LOGICAL_NUM = 241
 
 SERVO_DURATION_s = 1
@@ -11,7 +13,7 @@ SERVO_COMM_PERIOD_s = 0.02
 
 
 def set_gpio(value):
-    with open(GPIO_PATH/'value', 'w') as gpio_value:
+    with open(SERVO_GPIO_PATH/'value', 'w') as gpio_value:
         gpio_value.write(value)
 
 
@@ -23,14 +25,14 @@ def init_gpio() -> bool:
     """
 
     try:
-        if not GPIO_PATH.exists():
+        if not SERVO_GPIO_PATH.exists():
             with open(EXPORT_PATH, 'w') as export:
                 # Writing the logical GPIO pin will give us the P15_1 pin
                 # we see in the hardware documentation
                 export.write(str(GPIO_LOGICAL_NUM))
             time.sleep(0.1)
 
-        with open(GPIO_PATH/'direction', 'w') as gpio_direction:
+        with open(SERVO_GPIO_PATH/'direction', 'w') as gpio_direction:
             gpio_direction.write('out')
 
         return True
@@ -39,7 +41,7 @@ def init_gpio() -> bool:
         return False
 
 
-def perform_rotation(rotations=1):
+def perform_full_rotations(rotations=1):
     """
     Perform a number of rotations with the servo motor.
 
@@ -51,7 +53,7 @@ def perform_rotation(rotations=1):
 
 def nudge_forward():
     """
-    Nudge the servo motor forward.
+    Nudge the servo motor some forward (it can help align shafts, etc...)
     """
     manual_pwm(duration=0.1)
 
