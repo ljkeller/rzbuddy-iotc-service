@@ -9,12 +9,16 @@ from datetime import datetime
 from typing import Dict, Any, List
 
 from iotconnect import IoTConnectSDK
+import servo_controller.servo_manager as servo_manager
+
 
 class SignalException(Exception):
     """Custom exception to exit gracefully"""
 
+
 class IoTConnectManager:
     """Send RZBuddy data to IoTConnect platform using IoTConnect SDK."""
+
     def __init__(self, configs: List[str]) -> None:
         self.config = {}
         self.inject_config(configs)
@@ -23,6 +27,11 @@ class IoTConnectManager:
         self.sdk = None
         self.device_list = []
         self.setup_exit_handler()
+
+        print("Initializing GPIO")
+        self.gpio_init_healthy = servo_manager.init_gpio()
+        if self.gpio_init_healthy:
+            print("GPIO initialized")
 
         self.run_continuously = True
         self.last_payload_str = None
@@ -39,7 +48,7 @@ class IoTConnectManager:
         except Exception as e:
             print(f"Error injecting config: {e}")
             sys.exit(1)
-    
+
     # WARN: Not in use for now
     def get_dgram_socket(self) -> socket.socket:
         """Attempt connection (continuously) to RZBuddy producer socket"""
@@ -54,7 +63,8 @@ class IoTConnectManager:
                     af, socktype, proto, _, sa = addr
                     try:
                         sock = socket.socket(af, socktype, proto)
-                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        sock.setsockopt(socket.SOL_SOCKET,
+                                        socket.SO_REUSEADDR, 1)
                     except OSError as msg:
                         print(f"Socket init failed: {msg}. Retrying...")
                         sock = None
@@ -79,7 +89,6 @@ class IoTConnectManager:
                 retry_backoff_s = min(max_retry_backoff_s, retry_backoff_s * 2)
                 time.sleep(retry_backoff_s)
 
-
     def setup_exit_handler(self) -> None:
         """Define exit conditions as application will typically run indefinitely"""
         signal.signal(signal.SIGINT, self.exit_handler)
@@ -90,7 +99,7 @@ class IoTConnectManager:
         print("Exit signal detected. Exiting...")
         self.run_continuously = False
         raise SignalException("Exit signal detected")
-    
+
     # WARN: Not in use for now
     def receive_json_payload(self, sock: socket.socket) -> Dict[str, Any]:
         """Receive JSON payload from producer socket"""
@@ -98,7 +107,7 @@ class IoTConnectManager:
 
         if sock is None:
             raise ConnectionError("RZBuddy consumer socket not connected")
-        
+
         bytes_data, _ = sock.recvfrom(1024)
         if not bytes_data:
             raise ConnectionError("RZBuddy producer socket closing")
@@ -127,18 +136,26 @@ class IoTConnectManager:
             * - Message Type
             *     msgType = 5; // for "0x01" device command 
             """
-            data=msg
+            data = msg
             if data is None:
-                #print(data)
+                # print(data)
                 if "id" in data:
                     if "ack" in data and data["ack"]:
-                        self.sdk.sendAckCmd(data["ack"],7,"sucessfull",data["id"])  #fail=4,executed= 5,sucess=7,6=executedack
+                        # fail=4,executed= 5,sucess=7,6=executedack
+                        self.sdk.sendAckCmd(
+                            data["ack"], 7, "sucessfull", data["id"])
                 else:
                     if "ack" in data and data["ack"]:
-                        self.sdk.sendAckCmd(data["ack"],7,"sucessfull") #fail=4,executed= 5,sucess=7,6=executedack
+                        # fail=4,executed= 5,sucess=7,6=executedack
+                        self.sdk.sendAckCmd(data["ack"], 7, "sucessfull")
         else:
-            print("rule command",msg)
-        
+            print("rule command", msg)
+
+        # TODO: Find cmd info, map command to rotation count
+        if self.gpio_init_healthy:
+            servo_manager.perform_full_rotations(1)
+        else:
+            print("GPIO initialization failed. Skipping servo rotation.")
 
     def device_firmware_callback(self, msg: Dict[str, Any]) -> None:
         print("\n--- Firmware Command Message Received ---")
@@ -146,7 +163,8 @@ class IoTConnectManager:
         print(json.dumps(msg))
 
     def device_connection_callback(self, msg: Dict[str, Any]) -> None:
-        print("\n--- Device coonnection callback: no further business logic implemented ---")
+        print(
+            "\n--- Device coonnection callback: no further business logic implemented ---")
         print(json.dumps(msg))
 
     def twin_update_callback(self, msg: Dict[str, Any]) -> None:
@@ -159,7 +177,7 @@ class IoTConnectManager:
         if feed_data is None or len(feed_data.items()) == 0:
             print("Empty payload. Skipping transmission.")
             return False
-        
+
         try:
             # Snapshot payload before altering it
             cur_payload_str = json.dumps(feed_data)
@@ -176,11 +194,13 @@ class IoTConnectManager:
             self.sdk.SendData(payload)
 
             self.last_payload_str = cur_payload_str
-            self.next_transmit_time = time.time() + self.config['transmit_interval_seconds']
+            self.next_transmit_time = time.time(
+            ) + self.config['transmit_interval_seconds']
             return True
 
         except Exception as e:
-            print(f"Caught exception {e} while trying to send JSON payload to IoT connect.")
+            print(f"Caught exception \
+                {e} while trying to send JSON payload to IoT connect.")
             return False
 
     def run_telemetry_continuously(self) -> None:
@@ -190,19 +210,28 @@ class IoTConnectManager:
         while self.run_continuously:
             try:
                 print("Starting IoTConnect SDK")
-                with IoTConnectSDK(self.config['ids']['uniqueId'], self.config['ids']['sid'], self.config['sdk_options'], self.device_connection_callback) as self.sdk:
+                with IoTConnectSDK(self.config['ids']['uniqueId'],
+                                   self.config['ids']['sid'],
+                                   self.config['sdk_options'],
+                                   self.device_connection_callback
+                                   ) as self.sdk:
+
                     self.device_list = self.sdk.Getdevice()
                     self.sdk.onDeviceCommand(self.device_command_callback)
                     self.sdk.onTwinChangeCommand(self.twin_update_callback)
                     self.sdk.onOTACommand(self.device_firmware_callback)
-                    self.sdk.onDeviceChangeCommand(self.device_connection_callback)
+                    self.sdk.onDeviceChangeCommand(
+                        self.device_connection_callback)
                     self.sdk.getTwins()
                     self.device_list = self.sdk.Getdevice()
-                    #rzbuddy_socket = self.get_dgram_socket()
-                    #print("Forwarding telemetry data to IoTConnect when it arrives...")
+                    # rzbuddy_socket = self.get_dgram_socket()
+                    # print("Forwarding telemetry data to IoTConnect when it arrives...")
                     while True:
-                    #    payload = self.receive_json_payload(rzbuddy_socket)
-                        payload = {"status": "no dog detected", "todays_total_dispense": 0, "treat_dispense": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")}
+                        #    payload = self.receive_json_payload(rzbuddy_socket)
+                        payload = {"status": "no dog detected",
+                                   "todays_total_dispense": 0,
+                                   "treat_dispense":
+                                   datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")}
                         self.send_json_payload_throttled(payload)
             except SignalException:
                 sys.exit(0)
@@ -212,6 +241,9 @@ class IoTConnectManager:
                 time.sleep(retry_backoff_s)
                 retry_backoff_s = min(max_retry_backoff_s, retry_backoff_s * 2)
 
+
 if __name__ == "__main__":
-    client = IoTConnectManager(['config/iotconnect-config-secrets.json', 'config/network_config.json'])
+    client = IoTConnectManager(
+        ['config/iotconnect-config-secrets.json',
+         'config/network_config.json'])
     client.run_telemetry_continuously()
