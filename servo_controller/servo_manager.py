@@ -1,20 +1,20 @@
 import time
 import pathlib
 
-# To understand this mapping, refer to the RZBoard Linux Yocto User's Manual
-# pinum = group * group_size + pin + pin_base (group_size = 8, pin_base = 120)
-# -> 241 = 15 * 8 + 1 + 120
-EXPORT_PATH = pathlib.Path('/sys/class/gpio/export')
-SERVO_GPIO_PATH = pathlib.Path('/sys/class/gpio/P15_1/')
-GPIO_LOGICAL_NUM = 241
+# TODO: swap to controlling servo via LED proxy. Setting red LED will rotate servo
+COMMON_GPIO_PATH = pathlib.Path('/sys/class/leds/led_red/trigger')
 
 SERVO_DURATION_s = 1
 SERVO_COMM_PERIOD_s = 0.02
+TIME_BETWEEN_MULTIPLE_ROTATIONS_s = 0.5
+
+SYSFS_GPIO_ON = 'default-on'
+SYSFS_GPIO_OFF = 'NONE'
 
 
-def set_gpio(value):
-    with open(SERVO_GPIO_PATH/'value', 'w') as gpio_value:
-        gpio_value.write(value)
+def write_sysfs_file(fp, value):
+    with open(fp, 'w') as sysfs_file:
+        sysfs_file.write(value)
 
 
 def init_gpio() -> bool:
@@ -24,16 +24,10 @@ def init_gpio() -> bool:
     Returns True if successful, False otherwise
     """
 
+    # TODO: start by turning red LED off
     try:
-        if not SERVO_GPIO_PATH.exists():
-            with open(EXPORT_PATH, 'w') as export:
-                # Writing the logical GPIO pin will give us the P15_1 pin
-                # we see in the hardware documentation
-                export.write(str(GPIO_LOGICAL_NUM))
-            time.sleep(0.1)
-
-        with open(SERVO_GPIO_PATH/'direction', 'w') as gpio_direction:
-            gpio_direction.write('out')
+        with open(COMMON_GPIO_PATH, 'w') as common_gpio_fp:
+            common_gpio_fp.write(SYSFS_GPIO_OFF)
 
         return True
     except Exception as e:
@@ -48,26 +42,28 @@ def perform_full_rotations(rotations=1):
     Default: 1 rotation.
     """
     for _ in range(rotations):
-        manual_pwm()
+        trigger_rotation()
+        time.sleep(SERVO_DURATION_s)
 
 
-def nudge_forward():
+def trigger_rotation():
     """
-    Nudge the servo motor some forward (it can help align shafts, etc...)
+    Trigger a rotation with the servo motor.
     """
-    manual_pwm(duration=0.1)
+    NotImplementedError("This function is not implemented yet")
+
+    write_sysfs_file(COMMON_GPIO_PATH, SYSFS_GPIO_ON)
+    # RTOS will detect gpio change and rotate servo once. After that,
+    # it can't be rotated again until the gpio is set to off
+    time.sleep(0.25)
+    write_sysfs_file(COMMON_GPIO_PATH, SYSFS_GPIO_OFF)
 
 
-def manual_pwm(pulse_width=0.0009, duration=0.92):
+def get_gpio_state():
     """
-    Primary interface to control the servo motor.
+    Get the current state of the GPIO pin.
 
-    The default arguments should rotate the servo one rotation (verified
-    experimentally).
+    Returns the state as a string.
     """
-    end_time = time.time() + duration
-    while time.time() < end_time:
-        set_gpio('1')
-        time.sleep(pulse_width)
-        set_gpio('0')
-        time.sleep(SERVO_COMM_PERIOD_s - pulse_width)
+    with open(COMMON_GPIO_PATH, 'r') as common_gpio_fp:
+        return common_gpio_fp.read().strip()
