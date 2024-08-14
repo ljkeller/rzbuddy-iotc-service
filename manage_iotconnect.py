@@ -155,9 +155,12 @@ class IoTConnectManager:
         else:
             print("rule command", msg)
 
-        # TODO: Find cmd info, map command to rotation count
+        # TODO: Extract rotation count
         if self.gpio_init_healthy:
-            servo_manager.perform_full_rotations(1)
+            try:
+                servo_manager.perform_full_rotations(1)
+            except Exception as e:
+                print(f"Error performing servo rotation: {e}. Continuing...")
         else:
             print("GPIO initialization failed. Skipping servo rotation.")
 
