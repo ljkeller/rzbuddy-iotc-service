@@ -32,11 +32,15 @@ class IoTConnectManager:
         self.gpio_init_healthy = servo_manager.init_gpio()
         if self.gpio_init_healthy:
             print("GPIO initialized")
+        else:
+            print(
+                "GPIO initialization failed! Servo will not rotate, but \
+                telemetry may still work. Continuing...")
 
         self.run_continuously = True
         self.last_payload_str = None
         self.next_transmit_time = time.time()
-        print("IoTConnect service initialized")
+        print("IoTConnect Manager initialized. Ready to start IoTConnect connection.")
 
     def inject_config(self, config_paths: List[str]) -> None:
         """Inject app configuration, dependencies"""
@@ -224,6 +228,9 @@ class IoTConnectManager:
                         self.device_connection_callback)
                     self.sdk.getTwins()
                     self.device_list = self.sdk.Getdevice()
+
+                    print("IoTConnect SDK configured. Connected to IoTConnect.")
+
                     # rzbuddy_socket = self.get_dgram_socket()
                     # print("Forwarding telemetry data to IoTConnect when it arrives...")
                     while True:
