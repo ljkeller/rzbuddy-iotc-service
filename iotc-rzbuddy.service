@@ -1,0 +1,14 @@
+[Unit]
+Description=RZBuddy IoTConnect connection manager
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/rzbuddy/iotc/
+ExecStart=python3 /opt/rzbuddy/iotc/manage_iotconnect.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+
